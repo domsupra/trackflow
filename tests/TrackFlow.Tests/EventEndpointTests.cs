@@ -57,6 +57,8 @@ public class EventEndpointTests
         var b = await second.Content.ReadFromJsonAsync<JsonElement>();
         Assert.Equal(a.GetProperty("id").GetInt64(), b.GetProperty("id").GetInt64());
         Assert.Equal("cmp-1", b.GetProperty("campaignId").GetString());
+        // The replayed event must serialize as UTC exactly like the original did.
+        Assert.EndsWith("Z", b.GetProperty("occurredAt").GetString());
 
         using var db = factory.CreateDb();
         Assert.Equal(1, await db.Events.CountAsync());
@@ -68,7 +70,7 @@ public class EventEndpointTests
     [InlineData("conversion without clickId", """{"type":"conversion","campaignId":"c","amount":1,"idempotencyKey":"k"}""")]
     [InlineData("negative amount", """{"type":"conversion","campaignId":"c","clickId":"x","amount":-1,"idempotencyKey":"k"}""")]
     [InlineData("missing idempotency key", """{"type":"click","campaignId":"c"}""")]
-    public async Task Invalid_event_returns_400_with_problem_details(string _, string json)
+    public async Task Invalid_event_returns_400_with_problem_details(string scenario, string json)
     {
         using var factory = new ApiFactory();
         var client = factory.CreateClient();
@@ -76,7 +78,7 @@ public class EventEndpointTests
         var response = await client.PostAsync("/v1/events",
             new StringContent(json, System.Text.Encoding.UTF8, "application/json"));
 
-        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.True(response.StatusCode == HttpStatusCode.BadRequest, $"{scenario}: expected 400, got {(int)response.StatusCode}");
         var body = await response.Content.ReadFromJsonAsync<JsonElement>();
         Assert.True(body.TryGetProperty("errors", out var errors));
         Assert.True(errors.EnumerateObject().Any());

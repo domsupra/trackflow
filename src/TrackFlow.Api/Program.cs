@@ -2,11 +2,13 @@ using Microsoft.EntityFrameworkCore;
 using TrackFlow.Api.Data;
 using TrackFlow.Api.Events;
 using TrackFlow.Api.Reports;
+using TrackFlow.Api.Rollup;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddDbContext<TrackingDbContext>(o =>
     o.UseSqlite(builder.Configuration.GetConnectionString("Tracking") ?? "Data Source=trackflow.db"));
+builder.Services.AddHostedService<RollupWorker>();
 
 var app = builder.Build();
 
