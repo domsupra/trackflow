@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using TrackFlow.Api.Data;
 using TrackFlow.Api.Events;
+using TrackFlow.Api.Reports;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -17,6 +18,7 @@ using (var scope = app.Services.CreateScope())
 
 app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
 app.MapEventEndpoints();
+app.MapReportEndpoints();
 
 app.Run();
 
