@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using TrackFlow.Api.Data;
+using TrackFlow.Api.Events;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -8,7 +9,14 @@ builder.Services.AddDbContext<TrackingDbContext>(o =>
 
 var app = builder.Build();
 
+// Sample-project shortcut: create the schema on startup. A real deployment would use migrations.
+using (var scope = app.Services.CreateScope())
+{
+    scope.ServiceProvider.GetRequiredService<TrackingDbContext>().Database.EnsureCreated();
+}
+
 app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
+app.MapEventEndpoints();
 
 app.Run();
 
