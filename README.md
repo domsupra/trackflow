@@ -91,10 +91,14 @@ middleware only when that directory exists, so an API-only deployment (or a sour
 degrades to pure JSON — the SPA is a convenience for demos and local development, not part of
 the request path for real tracking traffic.
 
-**Storage is swappable.** The default is SQLite so the repo runs with zero setup. The
-`DbContext` is provider-agnostic; point `ConnectionStrings:Tracking` at SQL Server, MySQL, or
-Postgres and swap the `UseSqlite` call. Decimal precision is declared on the model so money
-columns come out right on every provider.
+**Storage is swappable.** The default store is in-memory SQLite — no files, and every
+`dotnet run` starts with an empty database, so the sample is self-contained and nothing
+persists between sessions. `Program.cs` keeps one `SqliteConnection` open for the process and
+shares it across every `DbContext`; an in-memory database lives as long as its last connection,
+so per-request pooling would hand each request a fresh empty database and quietly break the
+idempotency demo. Point `ConnectionStrings:Tracking` at a file path, SQL Server, or Postgres
+(and swap the `UseSqlite` call) to make it real. The `DbContext` is provider-agnostic and
+decimal precision is declared on the model, so money columns come out right on every provider.
 
 **Tests hit a real database.** Each test gets its own in-memory SQLite database through
 `WebApplicationFactory`, so the tests exercise the actual EF query translation and the actual

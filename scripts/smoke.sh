@@ -1,10 +1,9 @@
 #!/usr/bin/env bash
 # Smoke test the README claims against a real running instance.
+# The default store is in-memory, so there is no database file to clean up.
 set -euo pipefail
 cd "$(dirname "$0")/.."
-rm -f /tmp/tf-smoke.db
-ConnectionStrings__Tracking="Data Source=/tmp/tf-smoke.db" \
-  dotnet run --project src/TrackFlow.Api --no-build -c Debug --urls http://127.0.0.1:5077 >/tmp/tf-smoke.log 2>&1 &
+dotnet run --project src/TrackFlow.Api --no-build -c Debug --urls http://127.0.0.1:5077 >/tmp/tf-smoke.log 2>&1 &
 PID=$!
 trap 'kill $PID 2>/dev/null || true' EXIT
 for i in $(seq 1 30); do curl -sf 127.0.0.1:5077/health >/dev/null 2>&1 && break; sleep 0.5; done
