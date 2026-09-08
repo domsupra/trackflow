@@ -1,3 +1,5 @@
+using System.Text.Json;
+using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using TrackFlow.Api.Data;
 
@@ -11,9 +13,27 @@ public static class EventEndpoints
         return app;
     }
 
-    private static async Task<IResult> CreateEvent(EventRequest request, TrackingDbContext db, CancellationToken ct)
+    private static async Task<IResult> CreateEvent(HttpRequest request, TrackingDbContext db, CancellationToken ct)
     {
-        if (!EventValidator.TryParse(request, DateTime.UtcNow, out var entity, out var errors))
+        // Parse the body ourselves so a malformed payload becomes a validation problem
+        // (400 ProblemDetails) instead of an uncaught binding exception (500).
+        EventRequest? body;
+        try
+        {
+            body = await request.ReadFromJsonAsync<EventRequest>();
+        }
+        catch (JsonException)
+        {
+            body = null;
+        }
+
+        if (body is null)
+            return Results.ValidationProblem(new Dictionary<string, string[]>
+            {
+                ["body"] = new[] { "Request body must be a valid JSON object." }
+            });
+
+        if (!EventValidator.TryParse(body, DateTime.UtcNow, out var entity, out var errors))
             return Results.ValidationProblem(errors);
 
         // Fast path: already seen this key, return what we stored the first time.

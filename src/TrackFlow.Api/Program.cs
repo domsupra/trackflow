@@ -7,19 +7,24 @@ using TrackFlow.Api.Rollup;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Malformed requests (unparseable JSON, bad query values) and unexpected failures should
+// fail the same way as validation errors: RFC 9457 ProblemDetails, in every environment.
+builder.Services.AddProblemDetails();
+
 string tracking = builder.Configuration.GetConnectionString("Tracking") ?? "Data Source=:memory:";
 
 if (tracking.Contains(":memory:", StringComparison.OrdinalIgnoreCase))
 {
-    // Demo default: the store is in RAM for the lifetime of this process — no files to
-    // keep up with, and every `dotnet run` starts fresh. One open SqliteConnection is
-    // shared by every DbContext instance; an in-memory database dies with its last
-    // connection, so the usual open/close-per-request pooling would hand every request a
-    // brand-new empty database (and break the idempotency demo). DI closes it on shutdown.
-    var sharedConnection = new SqliteConnection(tracking);
-    sharedConnection.Open();
-    builder.Services.AddSingleton(sharedConnection);
-    builder.Services.AddDbContext<TrackingDbContext>(o => o.UseSqlite(sharedConnection));
+    // Demo default: the store is in RAM for the lifetime of this process — no files to keep
+    // up with, and every `dotnet run` starts fresh. Shared-cache mode lets every DbContext
+    // open its OWN connection (required: a SqliteConnection is not safe for concurrent use,
+    // and DbContext is scoped per request), while one idle connection pins the database —
+    // an in-memory database dies with its last connection. DI disposes the pin at shutdown.
+    const string shared = "Data Source=trackflow;Mode=Memory;Cache=Shared";
+    var keepAlive = new SqliteConnection(shared);
+    keepAlive.Open();
+    builder.Services.AddSingleton(keepAlive);
+    builder.Services.AddDbContext<TrackingDbContext>(o => o.UseSqlite(shared));
 }
 else
 {
@@ -28,6 +33,9 @@ else
 builder.Services.AddHostedService<RollupWorker>();
 
 var app = builder.Build();
+
+app.UseExceptionHandler();
+app.UseStatusCodePages();
 
 // Sample-project shortcut: create the schema on startup. A real deployment would use migrations.
 using (var scope = app.Services.CreateScope())

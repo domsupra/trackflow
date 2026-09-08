@@ -1,0 +1,10 @@
+# Normalise line endings so diffs on any OS stay clean.
+* text=auto eol=lf
+*.cs text
+*.json text
+*.md text
+*.ts text
+*.tsx text
+*.csproj text
+*.sh text eol=lf
+*.dll binary

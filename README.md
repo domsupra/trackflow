@@ -8,8 +8,8 @@ by the same API process.
 This is a sample, not a product. It exists to show how I structure a .NET service: explicit
 validation, idempotent writes enforced by the database, a report query that is correct at the
 window edges, a background job that is safe to re-run, a thin SPA that talks to the API, and
-integration tests against a real database provider. Roughly 360 lines of application code,
-roughly 360 lines of typed React, and 20 tests.
+integration tests against a real database provider. Roughly 440 lines of application code,
+roughly 360 lines of typed React, and 23 tests.
 
 [![ci](https://github.com/domsupra/trackflow/actions/workflows/ci.yml/badge.svg)](https://github.com/domsupra/trackflow/actions/workflows/ci.yml)
 
@@ -26,17 +26,17 @@ dotnet test
 dotnet run --project src/TrackFlow.Api
 ```
 
-With the dashboard built, open `http://localhost:5000` for the UI (or `/health` / `/v1/...` for
+With the dashboard built, open `http://localhost:5011` for the UI (or `/health` / `/v1/...` for
 the API). For dashboard development, run `npm run dev` inside `dashboard/` — the Vite dev
 server on port 5173 proxies `/v1` and `/health` to the API, so no CORS is needed either way.
 
 Record a click and a conversion:
 
 ```bash
-curl -s -X POST localhost:5000/v1/events -H 'content-type: application/json' \
+curl -s -X POST localhost:5011/v1/events -H 'content-type: application/json' \
   -d '{"type":"click","campaignId":"spring-sale","clickId":"c-1001","idempotencyKey":"evt-1"}'
 
-curl -s -X POST localhost:5000/v1/events -H 'content-type: application/json' \
+curl -s -X POST localhost:5011/v1/events -H 'content-type: application/json' \
   -d '{"type":"conversion","campaignId":"spring-sale","clickId":"c-1001","amount":49.99,"idempotencyKey":"evt-2"}'
 ```
 
@@ -45,7 +45,7 @@ Send `evt-1` again and you get `200` with the original event instead of a second
 Report on a window:
 
 ```bash
-curl -s "localhost:5000/v1/reports/campaigns?from=2026-01-01T00:00:00Z&to=2026-12-31T00:00:00Z"
+curl -s "localhost:5011/v1/reports/campaigns?from=2026-01-01T00:00:00Z&to=2026-12-31T00:00:00Z"
 # [{"campaignId":"spring-sale","clicks":1,"conversions":1,"revenue":49.99,"conversionRate":1.0}]
 ```
 
@@ -66,7 +66,8 @@ docker build -t trackflow . && docker run -p 8080:8080 trackflow
 | `GET` | `/` | The React dashboard, if its bundle was built into `wwwroot` |
 
 Event body: `type` (`click` or `conversion`), `campaignId`, `clickId` (required for conversions),
-`amount` (conversions only, non-negative), `occurredAt` (optional, defaults to now), `idempotencyKey`.
+`amount` (conversions only, non-negative), `occurredAt` (optional, defaults to now; a value
+without a timezone designator is interpreted as UTC), `idempotencyKey`.
 
 ## Design notes
 
@@ -93,10 +94,12 @@ the request path for real tracking traffic.
 
 **Storage is swappable.** The default store is in-memory SQLite — no files, and every
 `dotnet run` starts with an empty database, so the sample is self-contained and nothing
-persists between sessions. `Program.cs` keeps one `SqliteConnection` open for the process and
-shares it across every `DbContext`; an in-memory database lives as long as its last connection,
-so per-request pooling would hand each request a fresh empty database and quietly break the
-idempotency demo. Point `ConnectionStrings:Tracking` at a file path, SQL Server, or Postgres
+persists between sessions. The demo database is a *named* in-memory database in shared-cache
+mode: every `DbContext` opens its own connection (a `SqliteConnection` is not safe for
+concurrent use, and `DbContext` is scoped per request) while one idle connection pins the
+database's lifetime — an in-memory database dies with its last connection, so without the pin
+each request would see a fresh empty database and the idempotency demo would quietly break.
+Point `ConnectionStrings:Tracking` at a file path, SQL Server, or Postgres
 (and swap the `UseSqlite` call) to make it real. The `DbContext` is provider-agnostic and
 decimal precision is declared on the model, so money columns come out right on every provider.
 

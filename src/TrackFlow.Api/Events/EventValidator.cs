@@ -8,6 +8,19 @@ namespace TrackFlow.Api.Events;
 /// </summary>
 public static class EventValidator
 {
+    /// <summary>
+    /// Normalises client timestamps: a value without a timezone designator (no
+    /// <c>DateTimeOffset</c>) is interpreted as UTC, not as the server's local time, so
+    /// the same payload means the same instant on every host.
+    /// </summary>
+    public static DateTime ToUtc(DateTime value) =>
+        value.Kind switch
+        {
+            DateTimeKind.Utc => value,
+            DateTimeKind.Local => value.ToUniversalTime(),
+            _ => DateTime.SpecifyKind(value, DateTimeKind.Utc),
+        };
+
     public static bool TryParse(EventRequest request, DateTime nowUtc, out Event entity, out Dictionary<string, string[]> errors)
     {
         var errs = new Dictionary<string, List<string>>();
@@ -61,7 +74,7 @@ public static class EventValidator
             CampaignId = request.CampaignId!.Trim(),
             ClickId = string.IsNullOrWhiteSpace(request.ClickId) ? null : request.ClickId.Trim(),
             Amount = type == EventType.Conversion ? request.Amount ?? 0m : 0m,
-            OccurredAt = (request.OccurredAt ?? nowUtc).ToUniversalTime(),
+            OccurredAt = ToUtc(request.OccurredAt ?? nowUtc),
             IdempotencyKey = request.IdempotencyKey!.Trim(),
             ReceivedAt = nowUtc,
         };

@@ -1,4 +1,5 @@
 using TrackFlow.Api.Data;
+using TrackFlow.Api.Events;
 
 namespace TrackFlow.Api.Reports;
 
@@ -19,7 +20,8 @@ public static class ReportEndpoints
         if (from is not null && to is not null && to <= from) errors["to"] = new[] { "Must be after 'from'." };
         if (errors.Count > 0) return Results.ValidationProblem(errors);
 
-        var rows = await CampaignReport.QueryAsync(db, from!.Value.ToUniversalTime(), to!.Value.ToUniversalTime(), ct);
+        // Timestamps without a timezone designator are UTC (see EventValidator.ToUtc), not local.
+        var rows = await CampaignReport.QueryAsync(db, EventValidator.ToUtc(from!.Value), EventValidator.ToUtc(to!.Value), ct);
         return Results.Ok(rows);
     }
 }

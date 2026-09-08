@@ -64,6 +64,57 @@ public class EventEndpointTests
         Assert.Equal(1, await db.Events.CountAsync());
     }
 
+    [Fact]
+    public async Task Concurrent_race_on_one_key_creates_exactly_one_row()
+    {
+        using var factory = new ApiFactory();
+        var client = factory.CreateClient();
+
+        // The unique index, not the fast-path lookup, is what settles this: fire the same key
+        // at the endpoint at the same time and the losers must surface the winner, not err.
+        var responses = await Task.WhenAll(Enumerable.Range(0, 12)
+            .Select(_ => client.PostAsJsonAsync("/v1/events", Click("race-key"))));
+
+        Assert.Contains(HttpStatusCode.Created, responses.Select(r => r.StatusCode));
+        Assert.All(responses, r => Assert.True(
+            r.StatusCode is HttpStatusCode.Created or HttpStatusCode.OK,
+            $"race request failed: {(int)r.StatusCode}"));
+
+        using var db = factory.CreateDb();
+        Assert.Equal(1, await db.Events.CountAsync(e => e.IdempotencyKey == "race-key"));
+    }
+
+    [Fact]
+    public async Task Malformed_json_returns_problem_details_400()
+    {
+        using var factory = new ApiFactory();
+        var client = factory.CreateClient();
+
+        var response = await client.PostAsync("/v1/events",
+            new StringContent("not json", System.Text.Encoding.UTF8, "application/json"));
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.StartsWith("application/problem+json", response.Content.Headers.ContentType?.MediaType);
+    }
+
+    [Fact]
+    public async Task Designatorless_occurredAt_is_treated_as_utc()
+    {
+        using var factory = new ApiFactory();
+        var client = factory.CreateClient();
+
+        var response = await client.PostAsJsonAsync("/v1/events", new
+        {
+            type = "click", campaignId = "cmp-1", idempotencyKey = "k-utc",
+            occurredAt = "2026-06-01T12:05:00"
+        });
+
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+        // Unshifted: the payload's wall clock IS the instant, on any host timezone.
+        Assert.Equal("2026-06-01T12:05:00Z", body.GetProperty("occurredAt").GetString());
+    }
+
     [Theory]
     [InlineData("missing campaign", """{"type":"click","idempotencyKey":"k"}""")]
     [InlineData("unknown type", """{"type":"impression","campaignId":"c","idempotencyKey":"k"}""")]

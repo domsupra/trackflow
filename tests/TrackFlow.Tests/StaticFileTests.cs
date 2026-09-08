@@ -65,7 +65,7 @@ public class StaticFileTests
         {
             // No local bundle (source-only clone). The no-bundle 404 branch above still
             // runs, so overall coverage doesn't rely on this; just no-op the serve check.
-            // CI builds the dashboard before tests, so this branch only hits unbuilded dev boxes.
+            // CI builds the dashboard before tests, so this branch only hits unbuilt dev boxes.
             return;
         }
 
