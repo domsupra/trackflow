@@ -8,8 +8,8 @@ by the same API process.
 This is a sample, not a product. It exists to show how I structure a .NET service: explicit
 validation, idempotent writes enforced by the database, a report query that is correct at the
 window edges, a background job that is safe to re-run, a thin SPA that talks to the API, and
-integration tests against a real database provider. Roughly 400 lines of application code,
-roughly 200 lines of React, and 20 tests.
+integration tests against a real database provider. Roughly 360 lines of application code,
+roughly 360 lines of typed React, and 20 tests.
 
 [![ci](https://github.com/domsupra/trackflow/actions/workflows/ci.yml/badge.svg)](https://github.com/domsupra/trackflow/actions/workflows/ci.yml)
 
