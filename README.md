@@ -1,24 +1,34 @@
 # TrackFlow
 
-A small, production-shaped event tracking API in ASP.NET Core. It accepts click and conversion
-events, deduplicates them, reports per-campaign totals, and rolls raw events up into hourly
-aggregates in the background.
+A small, production-shaped event tracking stack in ASP.NET Core with a React dashboard. The
+API accepts click and conversion events, deduplicates them, and reports per-campaign totals in
+the background. The dashboard lets you post test events and see the live report, and is served
+by the same API process.
 
 This is a sample, not a product. It exists to show how I structure a .NET service: explicit
 validation, idempotent writes enforced by the database, a report query that is correct at the
-window edges, a background job that is safe to re-run, and integration tests against a real
-database provider. About 400 lines of application code and 18 tests.
+window edges, a background job that is safe to re-run, a thin SPA that talks to the API, and
+integration tests against a real database provider. Roughly 400 lines of application code,
+roughly 200 lines of React, and 20 tests.
 
 [![ci](https://github.com/domsupra/trackflow/actions/workflows/ci.yml/badge.svg)](https://github.com/domsupra/trackflow/actions/workflows/ci.yml)
 
 ## Quick start
 
-Requires the .NET 7 SDK (also builds on .NET 8).
+Requires the .NET 7 SDK (also builds on .NET 8). Node is only needed for the dashboard.
 
 ```bash
+# dashboard (optional; skip it and the API runs fine as pure JSON)
+cd dashboard && npm install && npm run build && cd ..
+
+# API
 dotnet test
 dotnet run --project src/TrackFlow.Api
 ```
+
+With the dashboard built, open `http://localhost:5000` for the UI (or `/health` / `/v1/...` for
+the API). For dashboard development, run `npm run dev` inside `dashboard/` — the Vite dev
+server on port 5173 proxies `/v1` and `/health` to the API, so no CORS is needed either way.
 
 Record a click and a conversion:
 
@@ -39,7 +49,8 @@ curl -s "localhost:5000/v1/reports/campaigns?from=2026-01-01T00:00:00Z&to=2026-1
 # [{"campaignId":"spring-sale","clicks":1,"conversions":1,"revenue":49.99,"conversionRate":1.0}]
 ```
 
-Or run it in Docker:
+Or run it in Docker (multi-stage: builds the dashboard, then the API, and serves both from one
+process):
 
 ```bash
 docker build -t trackflow . && docker run -p 8080:8080 trackflow
@@ -52,6 +63,7 @@ docker build -t trackflow . && docker run -p 8080:8080 trackflow
 | `POST` | `/v1/events` | `201` on first insert, `200` with the stored event on a repeated `idempotencyKey`, `400` ProblemDetails on validation failure |
 | `GET` | `/v1/reports/campaigns?from&to` | Per-campaign clicks, conversions, revenue, conversion rate for `occurredAt` in `[from, to)` |
 | `GET` | `/health` | `{"status":"ok"}` |
+| `GET` | `/` | The React dashboard, if its bundle was built into `wwwroot` |
 
 Event body: `type` (`click` or `conversion`), `campaignId`, `clickId` (required for conversions),
 `amount` (conversions only, non-negative), `occurredAt` (optional, defaults to now), `idempotencyKey`.
@@ -73,6 +85,12 @@ produces the same rows. Late-arriving events for the most recent hour get folded
 run. The `RollupWorker` background service calls it every `Rollup:IntervalMinutes` (default 5)
 and logs failures instead of crashing the host.
 
+**The dashboard is a bundle, not a dependency.** `dashboard/` is a React + TypeScript + Vite
+SPA whose build output lands in the API's `wwwroot`. `Program.cs` registers the static-file
+middleware only when that directory exists, so an API-only deployment (or a source-only clone)
+degrades to pure JSON — the SPA is a convenience for demos and local development, not part of
+the request path for real tracking traffic.
+
 **Storage is swappable.** The default is SQLite so the repo runs with zero setup. The
 `DbContext` is provider-agnostic; point `ConnectionStrings:Tracking` at SQL Server, MySQL, or
 Postgres and swap the `UseSqlite` call. Decimal precision is declared on the model so money
@@ -93,8 +111,9 @@ unique index rather than a mocked context.
 
 ## Non-goals
 
-No UI, no multi-tenancy, no fraud detection, no attribution modeling. Those are products; this
-is a sample of how the foundation under them should look.
+No real UI (the dashboard is a demo front-end, not a product), no multi-tenancy, no fraud
+detection, no attribution modeling. Those are products; this is a sample of how the foundation
+under them should look.
 
 ## Layout
 
@@ -104,6 +123,7 @@ src/TrackFlow.Api/
   Events/    request contract, validator, POST endpoint
   Reports/   campaign report query and GET endpoint
   Rollup/    RollupService (tested) and RollupWorker (hosted timer)
+dashboard/     React + TypeScript + Vite; builds into src/TrackFlow.Api/wwwroot
 tests/TrackFlow.Tests/
   ApiFactory.cs   one isolated SQLite database per test
   *Tests.cs       one behavior per test

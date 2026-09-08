@@ -13,7 +13,7 @@ namespace TrackFlow.Tests;
 /// One isolated SQLite in-memory database per test. The connection stays open for the
 /// life of the factory so the in-memory database survives across DbContext instances.
 /// </summary>
-public sealed class ApiFactory : WebApplicationFactory<Program>
+public class ApiFactory : WebApplicationFactory<Program>
 {
     private readonly DbConnection _connection = new SqliteConnection("Data Source=:memory:");
 

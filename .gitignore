@@ -2,3 +2,13 @@
 bin/
 obj/
 *.cs.*.user
+
+# dashboard
+dashboard/node_modules/
+src/TrackFlow.Api/wwwroot/
+npm-debug.log*
+
+# local build artifacts (smoke script)
+smoke.db
+smoke.db-shm
+smoke.db-wal
