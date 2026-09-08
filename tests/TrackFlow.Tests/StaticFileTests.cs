@@ -83,6 +83,13 @@ public class StaticFileTests
         Assert.Equal(HttpStatusCode.OK, fallback.StatusCode);
         Assert.Contains("root", await fallback.Content.ReadAsStringAsync());
 
+        // Unmatched API paths are API mistakes: they 404 as JSON, never the SPA shell.
+        var unknownApi = await client.GetAsync("/v1/doesnotexist");
+        Assert.Equal(HttpStatusCode.NotFound, unknownApi.StatusCode);
+        Assert.DoesNotContain("index.html", await unknownApi.Content.ReadAsStringAsync());
+        var unknownHealth = await client.GetAsync("/health/garbage");
+        Assert.Equal(HttpStatusCode.NotFound, unknownHealth.StatusCode);
+
         // API routes keep working alongside the SPA.
         Assert.Equal(HttpStatusCode.OK, (await client.GetAsync("/health")).StatusCode);
     }

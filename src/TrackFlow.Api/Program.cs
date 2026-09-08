@@ -44,7 +44,25 @@ if (Directory.Exists(webRoot) && File.Exists(Path.Combine(webRoot, "index.html")
 {
     app.UseDefaultFiles();
     app.UseStaticFiles();
-    app.MapFallbackToFile("index.html");
+
+    // Catch-all for client-side routes: anything that isn't a static asset or an API route
+    // must not load the SPA shell. A mistyped API path (e.g. /v1/events2) is an API mistake
+    // and should 404 as JSON; only non-API paths (e.g. /campaigns/spring-sale) get index.html.
+    app.MapFallback(async (HttpContext context) =>
+    {
+        var path = context.Request.Path.Value ?? string.Empty;
+        if (path.StartsWith("/v1", StringComparison.OrdinalIgnoreCase)
+            || path.StartsWith("/health", StringComparison.OrdinalIgnoreCase))
+        {
+            context.Response.StatusCode = StatusCodes.Status404NotFound;
+            context.Response.ContentType = "application/problem+json";
+            await context.Response.WriteAsync("{\"title\":\"Not found.\",\"status\":404}");
+            return;
+        }
+
+        context.Response.ContentType = "text/html";
+        await context.Response.SendFileAsync(Path.Combine(webRoot, "index.html"));
+    });
 }
 
 app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
