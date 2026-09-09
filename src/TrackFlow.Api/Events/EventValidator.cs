@@ -9,6 +9,15 @@ namespace TrackFlow.Api.Events;
 public static class EventValidator
 {
     /// <summary>
+    /// Campaign and click identifiers are echoed back to callers and rendered in the
+    /// report table, so they are restricted to identifier characters rather than any
+    /// text within the length limit — a public write endpoint should not let a caller
+    /// choose arbitrary prose that later appears on someone else's screen.
+    /// </summary>
+    private static readonly System.Text.RegularExpressions.Regex IdentifierPattern =
+        new(@"^[A-Za-z0-9._-]+$", System.Text.RegularExpressions.RegexOptions.Compiled);
+
+    /// <summary>
     /// Normalises client timestamps: a value without a timezone designator (no
     /// <c>DateTimeOffset</c>) is interpreted as UTC, not as the server's local time, so
     /// the same payload means the same instant on every host.
@@ -40,9 +49,13 @@ public static class EventValidator
             Add("campaignId", "Required.");
         else if (request.CampaignId.Length > 64)
             Add("campaignId", "Must be 64 characters or fewer.");
+        else if (!IdentifierPattern.IsMatch(request.CampaignId.Trim()))
+            Add("campaignId", "Must contain only letters, digits, dot, underscore or hyphen.");
 
         if (request.ClickId is { Length: > 128 })
             Add("clickId", "Must be 128 characters or fewer.");
+        else if (!string.IsNullOrWhiteSpace(request.ClickId) && !IdentifierPattern.IsMatch(request.ClickId.Trim()))
+            Add("clickId", "Must contain only letters, digits, dot, underscore or hyphen.");
 
         if (string.IsNullOrWhiteSpace(request.IdempotencyKey))
             Add("idempotencyKey", "Required.");

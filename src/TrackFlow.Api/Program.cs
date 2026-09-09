@@ -1,6 +1,7 @@
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using TrackFlow.Api.Data;
+using TrackFlow.Api.Demo;
 using TrackFlow.Api.Events;
 using TrackFlow.Api.Reports;
 using TrackFlow.Api.Rollup;
@@ -31,6 +32,7 @@ else
     builder.Services.AddDbContext<TrackingDbContext>(o => o.UseSqlite(tracking));
 }
 builder.Services.AddHostedService<RollupWorker>();
+builder.Services.AddHostedService<DemoSeeder>();
 
 var app = builder.Build();
 

@@ -134,4 +134,55 @@ public class EventEndpointTests
         Assert.True(body.TryGetProperty("errors", out var errors));
         Assert.True(errors.EnumerateObject().Any());
     }
+
+    // Identifiers are echoed back and rendered in the report table. Anything a
+    // caller can put here is visible to whoever is looking at the dashboard, so
+    // the field is constrained to identifier characters rather than accepting
+    // arbitrary text up to the length limit.
+    [Theory]
+    [InlineData("spaces and prose", "buy now at example.com")]
+    [InlineData("angle brackets", "<b>bold</b>")]
+    [InlineData("newline", "line1\nline2")]
+    [InlineData("unicode control", "camp\u202Eevil")]
+    [InlineData("slash", "a/b")]
+    public async Task CampaignId_rejects_non_identifier_characters(string scenario, string campaignId)
+    {
+        using var factory = new ApiFactory();
+        var client = factory.CreateClient();
+
+        var response = await client.PostAsJsonAsync("/v1/events", new
+        {
+            type = "click",
+            campaignId,
+            clickId = "clk-1",
+            idempotencyKey = $"k-{scenario}",
+        });
+
+        Assert.True(response.StatusCode == HttpStatusCode.BadRequest,
+            $"{scenario}: expected 400, got {(int)response.StatusCode}");
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.True(body.GetProperty("errors").TryGetProperty("campaignId", out _),
+            $"{scenario}: expected a campaignId error");
+    }
+
+    [Theory]
+    [InlineData("spring-sale")]
+    [InlineData("demo_us")]
+    [InlineData("q2.2026")]
+    [InlineData("Campaign123")]
+    public async Task CampaignId_accepts_ordinary_identifiers(string campaignId)
+    {
+        using var factory = new ApiFactory();
+        var client = factory.CreateClient();
+
+        var response = await client.PostAsJsonAsync("/v1/events", new
+        {
+            type = "click",
+            campaignId,
+            clickId = "clk-1",
+            idempotencyKey = $"ok-{campaignId}",
+        });
+
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+    }
 }
